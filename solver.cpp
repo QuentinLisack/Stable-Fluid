@@ -18,7 +18,7 @@ private:
 	double dt;
 	//grilles sources : quel format ?
 	Mat S0, S1;
-	//grilles sur lesquelles on travaille
+	//grilles sur lesquelles on travaille : quel format ?
 	Mat U1, U0;
 	//viscosité
 	double visc;
@@ -26,5 +26,10 @@ private:
 	double k;
 	//coefficient de dissipation 
 	double a;
+
+	//constructeur
+	solver(int n, int N, double L, double dt, double visc, double k, double a){
+
+	}
 
 };
