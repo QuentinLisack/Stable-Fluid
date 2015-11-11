@@ -1,9 +1,18 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+
+PROJECT(Stable_Fluids)
+
 SET(OpenCV_STATIC OFF)
 FIND_PACKAGE(OpenCV REQUIRED)
-
-PROJECT(Stable_Fluid)
-
 INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
-ADD_EXECUTABLE(solver solver.cpp addSource addSource.cpp diffuse diffuse.cpp transport transport.cpp conserveMass conserveMass.cpp dissipate dissipate.cpp)
+
+FIND_PACKAGE(GSL REQUIRED)
+INCLUDE_DIRECTORIES(${GSL_INCLUDE_DIRS})
+
+ADD_EXECUTABLE(stable_fluids
+        main.cpp main.h
+        DiffusionSolver.cpp DiffusionSolver.h
+        TransportSolver.cpp TransportSolver.h)
+TARGET_LINK_LIBRARIES(stable_fluids ${OpenCV_LIBS} ${GSL_LIBRARIES})

@@ -1,5 +1,9 @@
 # build files
 build/
+bin/
+
+# CLion
+.idea/
 
 # Windows image file caches
 Thumbs.db
