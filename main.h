@@ -28,5 +28,11 @@ void Vstep(gsl_vector *U1[NDIM], gsl_vector *U0[NDIM], const double visc, gsl_ve
 void Sstep(gsl_vector *S1, gsl_vector *S0, const double kS, const double aS, gsl_vector *U1[NDIM],
            const gsl_vector *source, const double dt, const DiffusionSolver &diffSolver,
            const TransportSolver &transpSover);
+		   
+void addForce(gsl_vector *U, gsl_vector *F);
+
+void addSources(gsl_vector *S, gsl_vector source, const double dt);
+
+void dissipate(gsl_vector *S, const double dt, const double a);
 
 #endif //STABLE_FLUIDS_MAIN_H

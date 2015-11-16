@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
     Vstep(U1, U0, visc, F, dt, uDiffSolver, transpSolver);
     Sstep(S1, S0, kS, aS, U1, Ssource, dt, sDiffSolver, transpSolver);
 
-    // TODO: Read data and display it
+    // TODO: Read data and display it, update forces and sources
     // ...
 //    }
 
@@ -70,26 +70,33 @@ void Vstep(gsl_vector *U1[NDIM], // Vector to update
            const TransportSolver &transpSover) {
 
     size_t i;
-
-    // TODO
-//    for (i = 0; i < NDIM; i++)
-//        addForce(U0[i], F[i], dt);
-//    for (i = 0; i < NDIM; i++)
-//        Transport(U1[i], U0[i], U0, dt);
-//    for (i = 0; i < NDIM; i++)
-//        Diffuse(U0[i], U1[i], visc, dt);
-//    Project(U1, U0, dt);
-
-    // Ideas:
-//    for (i = 0; i < NDIM; i++)
-//        gsl_vector_add(U0[i], F[i]); // works if F is a velocity
-//    for (i = 0; i < NDIM; i++)
-//        transpSover.transport(U1[i], U0[i], dt);
-//    for (i = 0; i < NDIM; i++)
-//        diffSolver.diffuse(U1[i], U0[i]);
-//    ...
+    for (i = 0; i < NDIM; i++)
+       addForce(U0[i], F[i]); // works if F is a velocity
+    for (i = 0; i < NDIM; i++)
+        transpSolver.transport(U1[i], U0[i], dt);
+    for (i = 0; i < NDIM; i++)
+        uDiffSolver.diffuse(U1[i], U0[i]);
+	
+	//TODO
+		//Project !
 
 
+}
+
+// function to add forces to velocity
+void addForce(gsl_vector *U, gsl_vector *F){
+	gsl_vector_add(U, F);
+}
+
+void addSources(gsl_vector *S, gsl_vector source, const double dt){
+	gsl_vector_scale(source, dt);
+	gsl_vector_add(S, source);
+	// this function can be used only if we update the source between each iteration. 
+	// else we do not need to scale the source (just do it in the initialisation)
+}
+
+void dissipate(gsl_vector *S, const double dt, const double a){
+	gsl_vector_scale(S, 1 / (1 + aS * dt));
 }
 
 void Sstep(gsl_vector *S1, // Vector to update
@@ -103,4 +110,8 @@ void Sstep(gsl_vector *S1, // Vector to update
            const TransportSolver &transpSover) {
 
     // TODO
-}
+	size_t i;
+	addForce(S1, source, dt);
+	transpSolver.transport(S1, S0, dt);
+	sDiffSolver.diffuse(S1, S0);	
+	dissipate(S1, dt, aS);
