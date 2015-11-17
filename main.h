@@ -35,6 +35,10 @@ void Sstep(gsl_vector *S1, // Vector to update
            DiffusionSolver &diffSolver,
            TransportSolver &transpSolver);
 		   
+void CallBackFuncForce(int event, int x, int y, int flags, void* F);
+
+void CallBackFuncSource(int event, int x, int y, int flags, void* Ssource);		   
+		   
 void addForce(gsl_vector *U, const gsl_vector *F);
 
 void addSource(gsl_vector *S, const gsl_vector *source);

@@ -12,10 +12,17 @@
 
 #include <iostream>
 #include <opencv2/highgui.hpp>
+#include <time.h>
 
+//vars used for the user interaction
+int xf;
+int yf;
+time_t start;
 
 int main(int argc, char **argv) {
 
+	start = time(0);
+	
     bool simulating = true;
     const double visc = 50.0, kS = 5.0, aS = 1e-3, h = 1.0, dt = 1.0;
     size_t x, y, d;
@@ -41,6 +48,8 @@ int main(int argc, char **argv) {
     S0 = gsl_vector_calloc(N_TOT);
     S1 = gsl_vector_calloc(N_TOT);
 
+	xf = -1;
+	yf = -1;
 
     // Fictive inputs
     double radius = 50, x0 = 128, y0 = 128;
@@ -54,6 +63,11 @@ int main(int argc, char **argv) {
 
     Image<double> result(N0, N1, CV_64F);
 
+	// callbacks for the user interaction
+	namedWindow("Result", 1);
+	setMouseCallback("Result", CallBackFuncForce, F);
+	setMouseCallback("Result", CallBackFuncSource, Ssource);
+	
     // Main loop
     while (simulating) {
 
@@ -70,7 +84,7 @@ int main(int argc, char **argv) {
         Vstep(U1, U0, F, dt, uDiffSolver, ts, projectSolver);
         Sstep(S1, S0, aS, Ssource, dt, sDiffSolver, ts);
 
-        // TEST
+        // TEST : keep it since we update the ource and the force with the user interaction
         gsl_vector_scale(Ssource, 0.8);
         gsl_vector_scale(F[0], 0.8);
         gsl_vector_scale(F[1], 0.8);
@@ -87,6 +101,32 @@ int main(int argc, char **argv) {
     return 0;
 }
 
+void CallBackFuncForce(int event, int x, int y, int flags, void* F)
+{
+	double forceCoeff = 1;
+	double t = difftime(time(0), start);
+     if ( event == EVENT_MOUSEMOVE && flags == EVENT_FLAG_CTRLKEY)
+     {
+		 if(xf >= 0 && yf >= 0){
+          gsl_vector_set(F[0], _at(x, y), forceCoeff*(x-xf)/t);
+		  gsl_vector_set(F[0], _at(x, y), forceCoeff*(y-yf)/t);
+		 }
+		 xf = x;
+		 yf = y;
+	}else if(event == EVENT_MOUSEMOVE){
+		xf = -1;
+		yf = -1;
+		start = time(0);
+	}
+}
+
+void CallBackFuncSource(int event, int x, int y, int flags, void* Ssource)
+{
+     if (event == EVENT_LBUTTONDOWN)
+     {
+		 gsl_vector_set(Ssource, _at(x, y), 5);
+	}
+}
 
 /*
  * Step functions
