@@ -15,5 +15,6 @@ ADD_EXECUTABLE(stable_fluids
         main.cpp main.h
         image.h
         DiffusionSolver.cpp DiffusionSolver.h
-        TransportSolver.cpp TransportSolver.h)
+        TransportSolver.cpp TransportSolver.h
+        ProjectSolver.cpp ProjectSolver.h)
 TARGET_LINK_LIBRARIES(stable_fluids ${OpenCV_LIBS} ${GSL_LIBRARIES})

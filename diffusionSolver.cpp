@@ -7,7 +7,6 @@
 #include "main.h"
 
 #include <gsl/gsl_splinalg.h>
-#include <gsl/gsl_spmatrix.h>
 
 
 DiffusionSolver::DiffusionSolver(const double coeff, const double h, const double dt): coeff(coeff), h(h), dt(dt) {

@@ -6,6 +6,7 @@
 
 #include "TransportSolver.h"
 #include "DiffusionSolver.h"
+#include "ProjectSolver.h"
 
 #include "image.h"
 
@@ -21,6 +22,7 @@ int main(int argc, char **argv) {
 
     DiffusionSolver uDiffSolver(visc, h, dt), sDiffSolver(kS, h, dt);
     TransportSolver ts(h);
+    ProjectSolver projectSolver(h);
 
 
     // Vectors allocation
@@ -55,17 +57,17 @@ int main(int argc, char **argv) {
     // Main loop
     while (simulating) {
 
-//        // Swap vectors
-//        for (d = 0; d < NDIM; d++) {
-//            gsl_vector *temp = U0[d];
-//            U0[d] = U1[d];
-//            U1[d] = temp;
-//        }
+        // Swap vectors
+        for (d = 0; d < NDIM; d++) {
+            gsl_vector *temp = U0[d];
+            U0[d] = U1[d];
+            U1[d] = temp;
+        }
 //        gsl_vector *temp = S0;
 //        S0 = S1;
 //        S1 = temp;
 
-        Vstep(U1, U0, F, dt, uDiffSolver, ts);
+        Vstep(U1, U0, F, dt, uDiffSolver, ts, projectSolver);
         Sstep(S1, S0, aS, Ssource, dt, sDiffSolver, ts);
 
         // TEST
@@ -91,12 +93,8 @@ int main(int argc, char **argv) {
  * Create a separate class (eg: Fluid) if you want to put them outside of this file
  */
 
-void Vstep(gsl_vector *U1[NDIM], // Vector to update
-           gsl_vector *U0[NDIM],
-           gsl_vector *F[NDIM], // Force vector
-           const double dt,
-           DiffusionSolver &diffSolver,
-           TransportSolver &transpSolver) {
+void Vstep(gsl_vector *U1[], gsl_vector *U0[], gsl_vector *F[], const double dt, DiffusionSolver &diffSolver,
+           TransportSolver &transpSolver, ProjectSolver &projectSolver) {
 
     size_t d;
     for (d = 0; d < NDIM; d++)
@@ -109,6 +107,7 @@ void Vstep(gsl_vector *U1[NDIM], // Vector to update
     for (d = 0; d < NDIM; d++)
         diffSolver.diffuse(U0[d], U1[d]);
 
+    projectSolver.project(U1, U0);
 }
 
 void Sstep(gsl_vector *S1, // Vector to update

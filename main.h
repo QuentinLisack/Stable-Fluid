@@ -10,6 +10,7 @@
 
 class TransportSolver;
 class DiffusionSolver;
+class ProjectSolver;
 
 /*
  * Be careful to check everything here if you modify it.
@@ -23,12 +24,8 @@ const size_t N_TOT = N0 * N1;
 #define _at(x, y) (((y)<<LOG2N) + (x)) // FAST CONVERSION TO VECTOR INDEX
 
 
-void Vstep(gsl_vector *U1[NDIM], // Vector to update
-           gsl_vector *U0[NDIM],
-           gsl_vector *F[NDIM], // Force vector
-           const double dt,
-           DiffusionSolver &diffSolver,
-           TransportSolver &transpSolver);
+void Vstep(gsl_vector *U1[], gsl_vector *U0[], gsl_vector *F[], const double dt, DiffusionSolver &diffSolver,
+           TransportSolver &transpSolver, ProjectSolver &projectSolver);
 
 void Sstep(gsl_vector *S1, // Vector to update
            gsl_vector *S0,
