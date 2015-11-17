@@ -8,11 +8,12 @@ SET(OpenCV_STATIC OFF)
 FIND_PACKAGE(OpenCV REQUIRED)
 INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
 
-FIND_PACKAGE(GSL REQUIRED)
+FIND_PACKAGE(GSL REQUIRED 2.0)
 INCLUDE_DIRECTORIES(${GSL_INCLUDE_DIRS})
 
 ADD_EXECUTABLE(stable_fluids
         main.cpp main.h
+        image.h
         DiffusionSolver.cpp DiffusionSolver.h
         TransportSolver.cpp TransportSolver.h)
 TARGET_LINK_LIBRARIES(stable_fluids ${OpenCV_LIBS} ${GSL_LIBRARIES})

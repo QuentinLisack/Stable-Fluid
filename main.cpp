@@ -4,53 +4,83 @@
 
 #include "main.h"
 
+#include "TransportSolver.h"
+#include "DiffusionSolver.h"
+
+#include "image.h"
+
 #include <iostream>
+#include <opencv2/highgui.hpp>
 
 
 int main(int argc, char **argv) {
 
     bool simulating = true;
-    const double visc = 1., kS = 1., aS = 1., h = 1., dt = 0.1;
+    const double visc = 50.0, kS = 5.0, aS = 1e-3, h = 1.0, dt = 1.0;
+    size_t x, y, d;
 
-    DiffusionSolver uDiffSolver(visc, dt), sDiffSolver(kS, dt);
+    DiffusionSolver uDiffSolver(visc, h, dt), sDiffSolver(kS, h, dt);
+    TransportSolver ts(h);
+
 
     // Vectors allocation
     gsl_vector *U0[NDIM], *U1[NDIM], *S0, *S1,
-            *F[NDIM], *Ssource = gsl_vector_calloc(M * N);
+            *F[NDIM], *Ssource = gsl_vector_calloc(N_TOT);
 
-    for (size_t i = 0; i < NDIM; i++) {
+    for (d = 0; d < NDIM; d++) {
 
         // calloc initialises with zeros
-        U0[i] = gsl_vector_calloc(M * N);
-        U1[i] = gsl_vector_calloc(M * N);
+        U0[d] = gsl_vector_calloc(N_TOT);
+        U1[d] = gsl_vector_calloc(N_TOT);
 
-        F[i] = gsl_vector_calloc(M * N);
+        F[d] = gsl_vector_calloc(N_TOT);
     }
 
-    S0 = gsl_vector_calloc(M * N);
-    S1 = gsl_vector_calloc(M * N);
+    S0 = gsl_vector_calloc(N_TOT);
+    S1 = gsl_vector_calloc(N_TOT);
+
+
+    // Fictive inputs
+    double radius = 50, x0 = 128, y0 = 128;
+    for (double a = 0; a < 2 * M_PI; a += M_PI_4 / radius) {
+        gsl_vector_set(F[0], _at(size_t(round(x0 + radius * cos(a))), size_t(round(y0 + radius * sin(a)))), - radius * sin(a));
+        gsl_vector_set(F[1], _at(size_t(round(x0 + radius * cos(a))), size_t(round(y0 + radius * sin(a)))),   radius * cos(a));
+    }
+
+    gsl_vector_set(Ssource, _at(128, 165), 5);
+
+
+    Image<double> result(N0, N1, CV_64F);
 
     // Main loop
-//    while (simulating) {
+    while (simulating) {
 
-    // Swap vectors
-    for (size_t i = 0; i < NDIM; i++) {
-        gsl_vector *temp = U0[i];
-        U0[i] = U1[i];
-        U1[i] = temp;
+//        // Swap vectors
+//        for (d = 0; d < NDIM; d++) {
+//            gsl_vector *temp = U0[d];
+//            U0[d] = U1[d];
+//            U1[d] = temp;
+//        }
+//        gsl_vector *temp = S0;
+//        S0 = S1;
+//        S1 = temp;
+
+        Vstep(U1, U0, F, dt, uDiffSolver, ts);
+        Sstep(S1, S0, aS, Ssource, dt, sDiffSolver, ts);
+
+        // TEST
+        gsl_vector_scale(Ssource, 0.8);
+        gsl_vector_scale(F[0], 0.8);
+        gsl_vector_scale(F[1], 0.8);
+
+        // TODO: Read data and display it
+        // ...
+        for (y = 0; y < N1; y++) for (x = 0; x < N0; x++)
+                result(x, y) = gsl_vector_get(S0, _at(x, y));
+
+        imshow("Result", result.greyImage());
+        waitKey(1);
     }
-    gsl_vector *temp = S0;
-    S0 = S1;
-    S1 = temp;
-
-    TransportSolver transpSolver(U0);
-
-    Vstep(U1, U0, visc, F, dt, uDiffSolver, transpSolver);
-    Sstep(S1, S0, kS, aS, U1, Ssource, dt, sDiffSolver, transpSolver);
-
-    // TODO: Read data and display it, update forces and sources
-    // ...
-//    }
 
     return 0;
 }
@@ -63,55 +93,68 @@ int main(int argc, char **argv) {
 
 void Vstep(gsl_vector *U1[NDIM], // Vector to update
            gsl_vector *U0[NDIM],
-           const double visc,
            gsl_vector *F[NDIM], // Force vector
            const double dt,
-           const DiffusionSolver &diffSolver,
-           const TransportSolver &transpSover) {
+           DiffusionSolver &diffSolver,
+           TransportSolver &transpSolver) {
 
-    size_t i;
-    for (i = 0; i < NDIM; i++)
-       addForce(U0[i], F[i]); // works if F is a velocity
-    for (i = 0; i < NDIM; i++)
-        transpSolver.transport(U1[i], U0[i], dt);
-    for (i = 0; i < NDIM; i++)
-        uDiffSolver.diffuse(U1[i], U0[i]);
-	
-	//TODO
-		//Project !
+    size_t d;
+    for (d = 0; d < NDIM; d++)
+        addForce(U0[d], F[d]); // works if F is a velocity
 
+    transpSolver.setU(U0);
 
-}
+    for (d = 0; d < NDIM; d++)
+        transpSolver.transport(U1[d], U0[d], dt);
+    for (d = 0; d < NDIM; d++)
+        diffSolver.diffuse(U0[d], U1[d]);
 
-// function to add forces to velocity
-void addForce(gsl_vector *U, gsl_vector *F){
-	gsl_vector_add(U, F);
-}
-
-void addSources(gsl_vector *S, gsl_vector source, const double dt){
-	gsl_vector_scale(source, dt);
-	gsl_vector_add(S, source);
-	// this function can be used only if we update the source between each iteration. 
-	// else we do not need to scale the source (just do it in the initialisation)
-}
-
-void dissipate(gsl_vector *S, const double dt, const double a){
-	gsl_vector_scale(S, 1 / (1 + aS * dt));
 }
 
 void Sstep(gsl_vector *S1, // Vector to update
            gsl_vector *S0,
-           const double kS,
            const double aS,
-           gsl_vector *U1[NDIM],
            const gsl_vector *source, // Source vector
            const double dt,
-           const DiffusionSolver &diffSolver,
-           const TransportSolver &transpSover) {
+           DiffusionSolver &diffSolver,
+           TransportSolver &transpSolver) {
 
-    // TODO
-	size_t i;
-	addForce(S1, source, dt);
-	transpSolver.transport(S1, S0, dt);
-	sDiffSolver.diffuse(S1, S0);	
-	dissipate(S1, dt, aS);
+    addSource(S0, source);
+    transpSolver.transport(S1, S0, dt);
+    diffSolver.diffuse(S0, S1);
+    dissipate(S0, dt, aS);
+}
+
+
+// function to add forces to velocity
+void addForce(gsl_vector *U, const gsl_vector *F){
+    gsl_vector_add(U, F);
+}
+
+void addSource(gsl_vector *S, const gsl_vector *source){
+    gsl_vector_add(S, source);
+}
+
+void dissipate(gsl_vector *S, const double dt, const double a){
+    gsl_vector_scale(S, 1 / (1 + a * dt));
+}
+
+
+// For debug purposes...
+
+void printArray(double array[NDIM]) {
+    for (size_t d = 0; d < NDIM; d++)
+        std::cout << array[d] << " ";
+    std::cout << std::endl;
+}
+
+void printVector(gsl_vector *vec) {
+    size_t x, y;
+    for (y = 0; y < N1; y++) {
+        for (x = 0; x < N0; x++)
+            std::cout << gsl_vector_get(vec, _at(x, y)) << "\t";
+        std::cout << std::endl;
+    }
+
+    std::cout << std::endl;
+}

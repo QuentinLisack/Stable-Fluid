@@ -8,31 +8,45 @@
 #include <stddef.h>
 #include <gsl/gsl_vector.h>
 
-#include "DiffusionSolver.h"
-#include "TransportSolver.h"
+class TransportSolver;
+class DiffusionSolver;
 
 /*
  * Be careful to check everything here if you modify it.
  */
 
-const size_t NDIM = 2, LOG2N = 2;
+const size_t NDIM = 2, LOG2N = 8;
 //8 // POWER OF 2 FOR SPACE DIMENSION
-const size_t N = (1 << LOG2N);
-const size_t M = N;
-#define _at(i, j) (((i)<<LOG2N) + (j)) // FAST CONVERSION TO VECTOR INDEX
+const size_t N0 = (1 << LOG2N);
+const size_t N1 = N0;
+const size_t N_TOT = N0 * N1;
+#define _at(x, y) (((y)<<LOG2N) + (x)) // FAST CONVERSION TO VECTOR INDEX
 
 
-void Vstep(gsl_vector *U1[NDIM], gsl_vector *U0[NDIM], const double visc, gsl_vector *F[NDIM], const double dt,
-           const DiffusionSolver &diffSolver, const TransportSolver &transpSover);
+void Vstep(gsl_vector *U1[NDIM], // Vector to update
+           gsl_vector *U0[NDIM],
+           gsl_vector *F[NDIM], // Force vector
+           const double dt,
+           DiffusionSolver &diffSolver,
+           TransportSolver &transpSolver);
 
-void Sstep(gsl_vector *S1, gsl_vector *S0, const double kS, const double aS, gsl_vector *U1[NDIM],
-           const gsl_vector *source, const double dt, const DiffusionSolver &diffSolver,
-           const TransportSolver &transpSover);
+void Sstep(gsl_vector *S1, // Vector to update
+           gsl_vector *S0,
+           const double aS,
+           const gsl_vector *source, // Source vector
+           const double dt,
+           DiffusionSolver &diffSolver,
+           TransportSolver &transpSolver);
 		   
-void addForce(gsl_vector *U, gsl_vector *F);
+void addForce(gsl_vector *U, const gsl_vector *F);
 
-void addSources(gsl_vector *S, gsl_vector source, const double dt);
+void addSource(gsl_vector *S, const gsl_vector *source);
 
 void dissipate(gsl_vector *S, const double dt, const double a);
+
+// For debug purposes...
+
+void printArray(double array[NDIM]);
+void printVector(gsl_vector *vec);
 
 #endif //STABLE_FLUIDS_MAIN_H
