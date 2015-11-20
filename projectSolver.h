@@ -21,7 +21,7 @@ public:
 
     ~ProjectSolver();
 
-    void div(gsl_vector *UV, gsl_vector *U);
+    void div(gsl_vector *UV, gsl_vector **U);
     void project(gsl_vector *U1[NDIM], gsl_vector *U0[NDIM]);
 };
 

@@ -12,136 +12,186 @@
 
 #include <iostream>
 #include <opencv2/highgui.hpp>
-#include <time.h>
+
+#include <boost/thread.hpp>
+#include <chrono>
+
+#define WINDOW_NAME "Result"
 
 //vars used for the user interaction
-int xf;
-int yf;
-time_t start;
 
-int main(int argc, char **argv) {
 
-	start = time(0);
-	
-    bool simulating = true;
-    const double visc = 50.0, kS = 5.0, aS = 1e-3, h = 1.0, dt = 1.0;
+typedef struct {
+    gsl_vector **F;
+    gsl_vector *S;
+    boost::mutex F_mutex, S_mutex;
+} Data;
+
+volatile bool simulating = true;
+
+const double forceCoeff = 100.0, sourceCoeff = 5.0;
+
+int xf = -1, yf = -1;
+chrono::system_clock::time_point start;
+
+void mouseCallback(int event, int x, int y, int flags, void *ptr) {
+
+    Data *data = (Data*) ptr;
+    gsl_vector **F = data->F, *Ssource = data->S;
+
+    if (event == EVENT_MOUSEMOVE && flags & EVENT_FLAG_CTRLKEY) {
+
+        // Measure time elapsed since last event
+        chrono::system_clock::time_point now = chrono::system_clock::now();
+        double t = (chrono::duration_cast<chrono::duration<double> >(now - start)).count();
+        start = now;
+
+        // Add velocity to F
+        if (xf >= 0 && yf >= 0 && t > 0.0) {
+            data->F_mutex.lock();
+            gsl_vector_set(F[0], (size_t) _at(x, y), forceCoeff * (x - xf) / t);
+            gsl_vector_set(F[1], (size_t) _at(x, y), forceCoeff * (y - yf) / t);
+            data->F_mutex.unlock();
+        }
+
+        xf = x;
+        yf = y;
+    } else {
+        xf = -1;
+        yf = -1;
+    }
+
+    if (event == EVENT_LBUTTONDOWN || (event == EVENT_MOUSEMOVE && flags & EVENT_FLAG_LBUTTON)) {
+
+        // Add source to Ssource
+        data->S_mutex.lock();
+        gsl_vector_set(Ssource, (size_t) _at(x, y), sourceCoeff);
+        data->S_mutex.unlock();
+    }
+}
+
+void getInput(Data *data, gsl_vector **F, gsl_vector *Ssource) {
+    data->F_mutex.lock();
+    for (size_t d = 0; d < NDIM; d++) {
+            gsl_vector_add(F[d], data->F[d]);
+            gsl_vector_set_zero(data->F[d]);
+        }
+    data->F_mutex.unlock();
+    data->S_mutex.lock();
+    gsl_vector_add(Ssource, data->S);
+    gsl_vector_set_zero(data->S);
+    data->S_mutex.unlock();
+}
+
+void task(Data *data) {
+
+    gsl_vector *F[NDIM], *Ssource;
+
+    // Space parameters
+    const double visc = 25.0, kS = 5.0, aS = 1e-3, h = 1.0, dt = 1.0;
     size_t x, y, d;
 
     DiffusionSolver uDiffSolver(visc, h, dt), sDiffSolver(kS, h, dt);
     TransportSolver ts(h);
     ProjectSolver projectSolver(h);
 
-
     // Vectors allocation
-    gsl_vector *U0[NDIM], *U1[NDIM], *S0, *S1,
-            *F[NDIM], *Ssource = gsl_vector_calloc(N_TOT);
+    gsl_vector *U0[NDIM], *U1[NDIM], *S0, *S1;
 
     for (d = 0; d < NDIM; d++) {
 
         // calloc initialises with zeros
         U0[d] = gsl_vector_calloc(N_TOT);
         U1[d] = gsl_vector_calloc(N_TOT);
-
         F[d] = gsl_vector_calloc(N_TOT);
     }
 
     S0 = gsl_vector_calloc(N_TOT);
     S1 = gsl_vector_calloc(N_TOT);
+    Ssource = gsl_vector_calloc(N_TOT);
 
-	xf = -1;
-	yf = -1;
-
-    // Fictive inputs
-    double radius = 50, x0 = 128, y0 = 128;
-    for (double a = 0; a < 2 * M_PI; a += M_PI_4 / radius) {
-        gsl_vector_set(F[0], _at(size_t(round(x0 + radius * cos(a))), size_t(round(y0 + radius * sin(a)))), - radius * sin(a));
-        gsl_vector_set(F[1], _at(size_t(round(x0 + radius * cos(a))), size_t(round(y0 + radius * sin(a)))),   radius * cos(a));
-    }
-
-    gsl_vector_set(Ssource, _at(128, 165), 5);
-
-
+    // Output image
     Image<double> result(N0, N1, CV_64F);
 
-	// callbacks for the user interaction
-	namedWindow("Result", 1);
-	setMouseCallback("Result", CallBackFuncForce, F);
-	setMouseCallback("Result", CallBackFuncSource, Ssource);
-	
     // Main loop
     while (simulating) {
 
-        // Swap vectors
+        // Swap velocity vectors
         for (d = 0; d < NDIM; d++) {
             gsl_vector *temp = U0[d];
             U0[d] = U1[d];
             U1[d] = temp;
         }
-//        gsl_vector *temp = S0;
-//        S0 = S1;
-//        S1 = temp;
+
+        getInput(data, F, Ssource);
 
         Vstep(U1, U0, F, dt, uDiffSolver, ts, projectSolver);
         Sstep(S1, S0, aS, Ssource, dt, sDiffSolver, ts);
 
-        // TEST : keep it since we update the ource and the force with the user interaction
+        // TEST : keep it since we update the source and the force with the user interaction
         gsl_vector_scale(Ssource, 0.8);
         gsl_vector_scale(F[0], 0.8);
         gsl_vector_scale(F[1], 0.8);
 
-        // TODO: Read data and display it
-        // ...
+        // TODO: Improve result rendering
+
         for (y = 0; y < N1; y++) for (x = 0; x < N0; x++)
                 result(x, y) = gsl_vector_get(S0, _at(x, y));
 
-        imshow("Result", result.greyImage());
+        imshow(WINDOW_NAME, result.greyImage());
         waitKey(1);
     }
+}
+
+
+int main(int argc, char **argv) {
+
+    // Input vectors
+    gsl_vector *F[NDIM], *Ssource;
+
+    Ssource = gsl_vector_calloc(N_TOT);
+    for (size_t d = 0; d < NDIM; d++)
+        F[d] = gsl_vector_calloc(N_TOT);
+
+    // Data structure shared between threads
+    Data data = {F, Ssource};
+
+    // callbacks for the user interaction
+    namedWindow(WINDOW_NAME);
+    setMouseCallback(WINDOW_NAME, mouseCallback, &data);
+
+    // Start computing thread
+    boost::thread t(task, &data);
+
+    // Stop when user presses Escape
+    while(waitKey(0) != 27);
+
+    simulating = false;
+
+    // End computing thread
+    t.join();
 
     return 0;
 }
 
-void CallBackFuncForce(int event, int x, int y, int flags, void* F)
-{
-	double forceCoeff = 1;
-	double t = difftime(time(0), start);
-     if ( event == EVENT_MOUSEMOVE && flags == EVENT_FLAG_CTRLKEY)
-     {
-		 if(xf >= 0 && yf >= 0){
-          gsl_vector_set(F[0], _at(x, y), forceCoeff*(x-xf)/t);
-		  gsl_vector_set(F[0], _at(x, y), forceCoeff*(y-yf)/t);
-		 }
-		 xf = x;
-		 yf = y;
-	}else if(event == EVENT_MOUSEMOVE){
-		xf = -1;
-		yf = -1;
-		start = time(0);
-	}
-}
-
-void CallBackFuncSource(int event, int x, int y, int flags, void* Ssource)
-{
-     if (event == EVENT_LBUTTONDOWN)
-     {
-		 gsl_vector_set(Ssource, _at(x, y), 5);
-	}
-}
 
 /*
  * Step functions
  * Create a separate class (eg: Fluid) if you want to put them outside of this file
  */
 
-void Vstep(gsl_vector *U1[], gsl_vector *U0[], gsl_vector *F[], const double dt, DiffusionSolver &diffSolver,
-           TransportSolver &transpSolver, ProjectSolver &projectSolver) {
+void Vstep(gsl_vector *U1[],
+           gsl_vector *U0[],
+           gsl_vector *F[],
+           const double dt,
+           DiffusionSolver &diffSolver,
+           TransportSolver &transpSolver,
+           ProjectSolver &projectSolver) {
 
     size_t d;
     for (d = 0; d < NDIM; d++)
         addForce(U0[d], F[d]); // works if F is a velocity
-
-    transpSolver.setU(U0);
-
+    transpSolver.setU(U0); // Update transpSolver with this velocity
     for (d = 0; d < NDIM; d++)
         transpSolver.transport(U1[d], U0[d], dt);
     for (d = 0; d < NDIM; d++)
@@ -153,7 +203,7 @@ void Vstep(gsl_vector *U1[], gsl_vector *U0[], gsl_vector *F[], const double dt,
 void Sstep(gsl_vector *S1, // Vector to update
            gsl_vector *S0,
            const double aS,
-           const gsl_vector *source, // Source vector
+           gsl_vector *source, // Source vector
            const double dt,
            DiffusionSolver &diffSolver,
            TransportSolver &transpSolver) {
@@ -166,15 +216,15 @@ void Sstep(gsl_vector *S1, // Vector to update
 
 
 // function to add forces to velocity
-void addForce(gsl_vector *U, const gsl_vector *F){
+inline void addForce(gsl_vector *U, const gsl_vector *F) {
     gsl_vector_add(U, F);
 }
 
-void addSource(gsl_vector *S, const gsl_vector *source){
+inline void addSource(gsl_vector *S, const gsl_vector *source) {
     gsl_vector_add(S, source);
 }
 
-void dissipate(gsl_vector *S, const double dt, const double a){
+inline void dissipate(gsl_vector *S, const double dt, const double a) {
     gsl_vector_scale(S, 1 / (1 + a * dt));
 }
 

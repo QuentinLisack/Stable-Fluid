@@ -5,7 +5,6 @@
 #ifndef STABLE_FLUIDS_MAIN_H
 #define STABLE_FLUIDS_MAIN_H
 
-#include <stddef.h>
 #include <gsl/gsl_vector.h>
 
 class TransportSolver;
@@ -24,26 +23,27 @@ const size_t N_TOT = N0 * N1;
 #define _at(x, y) (((y)<<LOG2N) + (x)) // FAST CONVERSION TO VECTOR INDEX
 
 
-void Vstep(gsl_vector *U1[], gsl_vector *U0[], gsl_vector *F[], const double dt, DiffusionSolver &diffSolver,
-           TransportSolver &transpSolver, ProjectSolver &projectSolver);
+void Vstep(gsl_vector *U1[],
+           gsl_vector *U0[],
+           gsl_vector *F[],
+           const double dt,
+           DiffusionSolver &diffSolver,
+           TransportSolver &transpSolver,
+           ProjectSolver &projectSolver);
 
-void Sstep(gsl_vector *S1, // Vector to update
+void Sstep(gsl_vector *S1,
            gsl_vector *S0,
            const double aS,
-           const gsl_vector *source, // Source vector
+           gsl_vector *source,
            const double dt,
            DiffusionSolver &diffSolver,
            TransportSolver &transpSolver);
 		   
-void CallBackFuncForce(int event, int x, int y, int flags, void* F);
+inline void addForce(gsl_vector *U, const gsl_vector *F);
 
-void CallBackFuncSource(int event, int x, int y, int flags, void* Ssource);		   
-		   
-void addForce(gsl_vector *U, const gsl_vector *F);
+inline void addSource(gsl_vector *S, const gsl_vector *source);
 
-void addSource(gsl_vector *S, const gsl_vector *source);
-
-void dissipate(gsl_vector *S, const double dt, const double a);
+inline void dissipate(gsl_vector *S, const double dt, const double a);
 
 // For debug purposes...
 

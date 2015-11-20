@@ -7,6 +7,7 @@
 #include "main.h"
 
 #include <gsl/gsl_splinalg.h>
+#include <gsl/gsl_blas.h>
 
 
 DiffusionSolver::DiffusionSolver(const double coeff, const double h, const double dt): coeff(coeff), h(h), dt(dt) {
@@ -42,19 +43,15 @@ void DiffusionSolver::diffuse(gsl_vector *U1, const gsl_vector *U0) {
     int status;
 
     /* initial guess u = U1 */
-    gsl_vector *u = gsl_vector_alloc(N_TOT);
-    gsl_vector_memcpy(u, U0);
+    gsl_blas_dcopy(U0, U1);
 
     /* solve the system A u = f */
     do
-        status = gsl_splinalg_itersolve_iterate(C, U0, tol, u, work);
+        status = gsl_splinalg_itersolve_iterate(C, U0, tol, U1, work);
     while (status == GSL_CONTINUE && ++iter < max_iter);
 
-    /* output solution */
-    gsl_vector_memcpy(U1, u);
 
     gsl_splinalg_itersolve_free(work);
-    gsl_vector_free(u);
 }
 
 DiffusionSolver::~DiffusionSolver() {

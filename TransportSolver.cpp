@@ -6,6 +6,8 @@
 
 #include <gsl/gsl_odeiv2.h>
 #include <gsl/gsl_matrix.h>
+#include <gsl/gsl_vector_double.h>
+#include <string.h>
 
 
 TransportSolver::TransportSolver(const double h) : h(h) {
@@ -51,9 +53,7 @@ void TransportSolver::evaluateU(const double coord[NDIM], double u_interp[NDIM])
 void TransportSolver::evaluateUDeriv(const double coord[NDIM], double u_deriv[NDIM]) {
 
     // Works only if NDIM == 2 for now
-
-    gsl_matrix_view dfdy_mat
-            = gsl_matrix_view_array(u_deriv, 2, 2);
+    gsl_matrix_view dfdy_mat = gsl_matrix_view_array(u_deriv, 2, 2);
     gsl_matrix *m = &dfdy_mat.matrix;
     gsl_matrix_set(m, 0, 0, gsl_interp2d_eval_deriv_x(interp, xa, ya, u[0], coord[0], coord[1], xacc, yacc));
     gsl_matrix_set(m, 0, 1, gsl_interp2d_eval_deriv_y(interp, xa, ya, u[0], coord[0], coord[1], xacc, yacc));
@@ -82,12 +82,6 @@ int jac(double t, const double y[], double *dfdy,
 void TransportSolver::transport(gsl_vector *S1, const gsl_vector *S0, const double dt) {
 
     size_t x, y;
-    double s0[N_TOT];
-
-    for (y = 0; y < N1; y++) for (x = 0; x < N0; x++) {
-            const size_t idx = _at(x, y);
-            s0[idx] = gsl_vector_get(S0, idx);
-        }
 
     gsl_odeiv2_system sys = {func, jac, NDIM, this};
 
@@ -101,11 +95,11 @@ void TransportSolver::transport(gsl_vector *S1, const gsl_vector *S0, const doub
 
             if (status != GSL_SUCCESS)
             {
-                printf ("error, return value=%d\n", status);
+                printf ("ODE error, return value=%d\n", status);
                 abort();
             }
 
-            gsl_vector_set(S1, _at(x, y), gsl_interp2d_eval_extrap(interp, xa, ya, s0, Y[0], Y[1], xacc, yacc));
+            gsl_vector_set(S1, _at(x, y), gsl_interp2d_eval_extrap(interp, xa, ya, S0->data, Y[0], Y[1], xacc, yacc));
 
             gsl_odeiv2_driver_reset(d);
         }
