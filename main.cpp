@@ -83,12 +83,29 @@ void getInput(Data *data, gsl_vector **F, gsl_vector *Ssource) {
     data->S_mutex.unlock();
 }
 
+const double fps = 25;
+VideoWriter *videoWriter = NULL;
+
+void outputImage(const Mat &img) {
+
+    if (!videoWriter) {
+        videoWriter = new VideoWriter("../output.mpeg4", CV_FOURCC('a', 'v', 'c', '1'), fps, Size(N0, N1));
+        assert(videoWriter->isOpened());
+    }
+
+    Mat img3c;
+    cvtColor(img, img3c, CV_GRAY2BGR);
+
+    *videoWriter << img3c;
+    imshow(WINDOW_NAME, img3c);
+}
+
 void task(Data *data) {
 
     gsl_vector *F[NDIM], *Ssource;
 
     // Space parameters
-    const double visc = 25.0, kS = 5.0, aS = 1e-3, h = 1.0, dt = 1.0;
+    const double visc = 25.0, kS = 5.0, aS = 1e-3, h = 1.0, dt = 1/fps;
     size_t x, y, d;
 
     DiffusionSolver uDiffSolver(visc, h, dt), sDiffSolver(kS, h, dt);
@@ -138,8 +155,7 @@ void task(Data *data) {
         for (y = 0; y < N1; y++) for (x = 0; x < N0; x++)
                 result(x, y) = gsl_vector_get(S0, _at(x, y));
 
-        imshow(WINDOW_NAME, result.greyImage());
-        waitKey(1);
+        outputImage(result.greyImage());
     }
 }
 
