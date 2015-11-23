@@ -7,11 +7,16 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
 PROJECT(Stable_Fluids)
 
+SET(BOOST_ROOT "/home/quentin/boost_1_59_0")
+SET(BOOST_INCLUDEDIR "/home/quentin/boost_1_59_0/boost")
+FIND_PACKAGE(Boost REQUIRED)
+
 SET(OpenCV_STATIC OFF)
 FIND_PACKAGE(OpenCV REQUIRED)
 INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
 
-SET(OpenBLAS_DIR "/usr/local/opt/openblas/lib/cmake/openblas")
+#SET(OpenBLAS_DIR "/usr/local/opt/openblas/lib/cmake/openblas")
+SET(OpenBLAS_DIR "/opt/OpenBLAS/lib/cmake/openblas")
 FIND_PACKAGE(OpenBLAS REQUIRED)
 #INCLUDE_DIRECTORIES(${OpenBLAS_INCLUDE_DIRS}) # Currently not used
 
