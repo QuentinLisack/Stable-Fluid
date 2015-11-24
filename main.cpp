@@ -5,8 +5,8 @@
 #include "main.h"
 
 #include "TransportSolver.h"
-#include "diffusionSolver.h"
-#include "projectSolver.h"
+#include "DiffusionSolver.h"
+#include "ProjectSolver.h"
 
 #include "image.h"
 
@@ -170,13 +170,6 @@ void task(Data *data) {
         gsl_vector_scale(F[1], 0.8);
 
         // TODO: Improve result rendering
-<<<<<<< Updated upstream
-
-        for (y = 0; y < N1; y++) for (x = 0; x < N0; x++)
-                result(x, y) = gsl_vector_get(S0, _at(x, y));
-
-        outputImage(result.greyImage());
-=======
         // try this : let's assume that it won't be over 255 if it begins at 150.
 
         for (y = 0; y < N1; y++)
@@ -190,7 +183,6 @@ void task(Data *data) {
             }
         imshow(WINDOW_NAME, result);
         waitKey(1);
->>>>>>> Stashed changes
     }
 }
 
