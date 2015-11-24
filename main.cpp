@@ -5,8 +5,8 @@
 #include "main.h"
 
 #include "TransportSolver.h"
-#include "DiffusionSolver.h"
-#include "ProjectSolver.h"
+#include "diffusionSolver.h"
+#include "projectSolver.h"
 
 #include "image.h"
 
@@ -23,21 +23,21 @@
 
 typedef struct {
     gsl_vector **F;
-    gsl_vector *S;
+    gsl_vector **S;
     boost::mutex F_mutex, S_mutex;
 } Data;
 
 volatile bool simulating = true;
 
-const double forceCoeff = 100.0, sourceCoeff = 5.0;
+const double forceCoeff = 10.0, sourceCoeff = 100.0;
 
-int xf = -1, yf = -1;
+int xf = -1, yf = -1, r = 0, g = 0, b = 0;
 chrono::system_clock::time_point start;
 
 void mouseCallback(int event, int x, int y, int flags, void *ptr) {
 
-    Data *data = (Data*) ptr;
-    gsl_vector **F = data->F, *Ssource = data->S;
+    Data *data = (Data *) ptr;
+    gsl_vector **F = data->F, **Ssource = data->S;
 
     if (event == EVENT_MOUSEMOVE && flags & EVENT_FLAG_CTRLKEY) {
 
@@ -63,23 +63,38 @@ void mouseCallback(int event, int x, int y, int flags, void *ptr) {
 
     if (event == EVENT_LBUTTONDOWN || (event == EVENT_MOUSEMOVE && flags & EVENT_FLAG_LBUTTON)) {
 
-        // Add source to Ssource
-        data->S_mutex.lock();
-        gsl_vector_set(Ssource, (size_t) _at(x, y), sourceCoeff);
-        data->S_mutex.unlock();
+        // Add source to Ssource depending of the trackbars
+        if (b) {
+            data->S_mutex.lock();
+            gsl_vector_set(Ssource[0], (size_t) _at(x, y), sourceCoeff);
+            data->S_mutex.unlock();
+        }
+        if (g) {
+            data->S_mutex.lock();
+            gsl_vector_set(Ssource[1], (size_t) _at(x, y), sourceCoeff);
+            data->S_mutex.unlock();
+        }
+        if (r) {
+            data->S_mutex.lock();
+            gsl_vector_set(Ssource[2], (size_t) _at(x, y), sourceCoeff);
+            data->S_mutex.unlock();
+        }
     }
+
 }
 
-void getInput(Data *data, gsl_vector **F, gsl_vector *Ssource) {
+void getInput(Data *data, gsl_vector **F, gsl_vector **Ssource) {
     data->F_mutex.lock();
     for (size_t d = 0; d < NDIM; d++) {
-            gsl_vector_add(F[d], data->F[d]);
-            gsl_vector_set_zero(data->F[d]);
-        }
+        gsl_vector_add(F[d], data->F[d]);
+        gsl_vector_set_zero(data->F[d]);
+    }
     data->F_mutex.unlock();
     data->S_mutex.lock();
-    gsl_vector_add(Ssource, data->S);
-    gsl_vector_set_zero(data->S);
+    for (int i = 0; i < NS; i++) {
+        gsl_vector_add(Ssource[i], data->S[i]);
+        gsl_vector_set_zero(data->S[i]);
+    }
     data->S_mutex.unlock();
 }
 
@@ -102,7 +117,7 @@ void outputImage(const Mat &img) {
 
 void task(Data *data) {
 
-    gsl_vector *F[NDIM], *Ssource;
+    gsl_vector *F[NDIM], *Ssource[NS];
 
     // Space parameters
     const double visc = 25.0, kS = 5.0, aS = 1e-3, h = 1.0, dt = 1/fps;
@@ -113,7 +128,7 @@ void task(Data *data) {
     ProjectSolver projectSolver(h);
 
     // Vectors allocation
-    gsl_vector *U0[NDIM], *U1[NDIM], *S0, *S1;
+    gsl_vector *U0[NDIM], *U1[NDIM], *S0[NS], *S1[NS];
 
     for (d = 0; d < NDIM; d++) {
 
@@ -122,13 +137,14 @@ void task(Data *data) {
         U1[d] = gsl_vector_calloc(N_TOT);
         F[d] = gsl_vector_calloc(N_TOT);
     }
-
-    S0 = gsl_vector_calloc(N_TOT);
-    S1 = gsl_vector_calloc(N_TOT);
-    Ssource = gsl_vector_calloc(N_TOT);
+    for (int i = 0; i < NS; i++) {
+        S0[i] = gsl_vector_calloc(N_TOT);
+        S1[i] = gsl_vector_calloc(N_TOT);
+        Ssource[i] = gsl_vector_calloc(N_TOT);
+    }
 
     // Output image
-    Image<double> result(N0, N1, CV_64F);
+    Mat result(N0, N1, CV_8UC3);
 
     // Main loop
     while (simulating) {
@@ -143,19 +159,38 @@ void task(Data *data) {
         getInput(data, F, Ssource);
 
         Vstep(U1, U0, F, dt, uDiffSolver, ts, projectSolver);
-        Sstep(S1, S0, aS, Ssource, dt, sDiffSolver, ts);
+        for (int i = 0; i < NS; i++)
+            Sstep(S1[i], S0[i], aS, Ssource[i], dt, sDiffSolver, ts);
 
         // TEST : keep it since we update the source and the force with the user interaction
-        gsl_vector_scale(Ssource, 0.8);
+        for (int i = 0; i < NS; i++) {
+            gsl_vector_scale(Ssource[i], 0.8);
+        }
         gsl_vector_scale(F[0], 0.8);
         gsl_vector_scale(F[1], 0.8);
 
         // TODO: Improve result rendering
+<<<<<<< Updated upstream
 
         for (y = 0; y < N1; y++) for (x = 0; x < N0; x++)
                 result(x, y) = gsl_vector_get(S0, _at(x, y));
 
         outputImage(result.greyImage());
+=======
+        // try this : let's assume that it won't be over 255 if it begins at 150.
+
+        for (y = 0; y < N1; y++)
+            for (x = 0; x < N0; x++){
+                double red = gsl_vector_get(S0[2], _at(x, y)),
+                        green = gsl_vector_get(S0[1], _at(x, y)),
+                        blue = gsl_vector_get(S0[0], _at(x, y));
+                result.at<Vec3b>(x, y) = Vec3b((uchar) ((blue>255) ? 255 : blue),
+                                               (uchar) ((green>255) ? 255 : green),
+                                               (uchar) ((red>255) ? 255 : red));
+            }
+        imshow(WINDOW_NAME, result);
+        waitKey(1);
+>>>>>>> Stashed changes
     }
 }
 
@@ -163,9 +198,9 @@ void task(Data *data) {
 int main(int argc, char **argv) {
 
     // Input vectors
-    gsl_vector *F[NDIM], *Ssource;
-
-    Ssource = gsl_vector_calloc(N_TOT);
+    gsl_vector *F[NDIM], *Ssource[NS];
+    for (int i = 0; i < NS; i++)
+        Ssource[i] = gsl_vector_calloc(N_TOT);
     for (size_t d = 0; d < NDIM; d++)
         F[d] = gsl_vector_calloc(N_TOT);
 
@@ -174,13 +209,16 @@ int main(int argc, char **argv) {
 
     // callbacks for the user interaction
     namedWindow(WINDOW_NAME);
+    createTrackbar("R", WINDOW_NAME, &r, 1);
+    createTrackbar("G", WINDOW_NAME, &g, 1);
+    createTrackbar("B", WINDOW_NAME, &b, 1);
     setMouseCallback(WINDOW_NAME, mouseCallback, &data);
 
     // Start computing thread
     boost::thread t(task, &data);
 
     // Stop when user presses Escape
-    while(waitKey(0) != 27);
+    while (waitKey(0) != 27);
 
     simulating = false;
 
