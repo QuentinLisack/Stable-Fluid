@@ -29,9 +29,10 @@ typedef struct {
 
 volatile bool simulating = true;
 
-const double forceCoeff = 10.0;
+const double forceCoeff = 1.0;
 
-int xf = -1, yf = -1, r = 0, g = 0, b = 0;
+const int maxSource = 255;
+int xf = -1, yf = -1, r = maxSource, g = maxSource, b = maxSource;
 chrono::system_clock::time_point start;
 
 void mouseCallback(int event, int x, int y, int flags, void *ptr) {
@@ -186,9 +187,9 @@ int main(int argc, char **argv) {
 
     // callbacks for the user interaction
     namedWindow(WINDOW_NAME);
-    createTrackbar("R", WINDOW_NAME, &r, 255);
-    createTrackbar("G", WINDOW_NAME, &g, 255);
-    createTrackbar("B", WINDOW_NAME, &b, 255);
+    createTrackbar("R", WINDOW_NAME, &r, maxSource);
+    createTrackbar("G", WINDOW_NAME, &g, maxSource);
+    createTrackbar("B", WINDOW_NAME, &b, maxSource);
     setMouseCallback(WINDOW_NAME, mouseCallback, &data);
 
     // Start computing thread
