@@ -29,7 +29,7 @@ typedef struct {
 
 volatile bool simulating = true;
 
-const double forceCoeff = 10.0, sourceCoeff = 100.0;
+const double forceCoeff = 10.0;
 
 int xf = -1, yf = -1, r = 0, g = 0, b = 0;
 chrono::system_clock::time_point start;
@@ -43,7 +43,7 @@ void mouseCallback(int event, int x, int y, int flags, void *ptr) {
 
         // Measure time elapsed since last event
         chrono::system_clock::time_point now = chrono::system_clock::now();
-        double t = (chrono::duration_cast<chrono::duration<double> >(now - start)).count();
+        double t = (chrono::duration_cast < chrono::duration < double > > (now - start)).count();
         start = now;
 
         // Add velocity to F
@@ -64,21 +64,11 @@ void mouseCallback(int event, int x, int y, int flags, void *ptr) {
     if (event == EVENT_LBUTTONDOWN || (event == EVENT_MOUSEMOVE && flags & EVENT_FLAG_LBUTTON)) {
 
         // Add source to Ssource depending of the trackbars
-        if (b) {
-            data->S_mutex.lock();
-            gsl_vector_set(Ssource[0], (size_t) _at(x, y), sourceCoeff);
-            data->S_mutex.unlock();
-        }
-        if (g) {
-            data->S_mutex.lock();
-            gsl_vector_set(Ssource[1], (size_t) _at(x, y), sourceCoeff);
-            data->S_mutex.unlock();
-        }
-        if (r) {
-            data->S_mutex.lock();
-            gsl_vector_set(Ssource[2], (size_t) _at(x, y), sourceCoeff);
-            data->S_mutex.unlock();
-        }
+        data->S_mutex.lock();
+        gsl_vector_set(Ssource[0], (size_t) _at(x, y), (double) b);
+        gsl_vector_set(Ssource[1], (size_t) _at(x, y), (double) g);
+        gsl_vector_set(Ssource[2], (size_t) _at(x, y), (double) r);
+        data->S_mutex.unlock();
     }
 
 }
@@ -91,7 +81,7 @@ void getInput(Data *data, gsl_vector **F, gsl_vector **Ssource) {
     }
     data->F_mutex.unlock();
     data->S_mutex.lock();
-    for (int i = 0; i < NS; i++) {
+    for (size_t i = 0; i < NS; i++) {
         gsl_vector_add(Ssource[i], data->S[i]);
         gsl_vector_set_zero(data->S[i]);
     }
@@ -108,11 +98,8 @@ void outputImage(const Mat &img) {
         assert(videoWriter->isOpened());
     }
 
-    Mat img3c;
-    cvtColor(img, img3c, CV_GRAY2BGR);
-
-    *videoWriter << img3c;
-    imshow(WINDOW_NAME, img3c);
+    *videoWriter << img;
+    imshow(WINDOW_NAME, img);
 }
 
 void task(Data *data) {
@@ -120,7 +107,7 @@ void task(Data *data) {
     gsl_vector *F[NDIM], *Ssource[NS];
 
     // Space parameters
-    const double visc = 25.0, kS = 5.0, aS = 1e-3, h = 1.0, dt = 1/fps;
+    const double visc = 25.0, kS = 5.0, aS = 1e-3, h = 1.0, dt = 1 / fps;
     size_t x, y, d;
 
     DiffusionSolver uDiffSolver(visc, h, dt), sDiffSolver(kS, h, dt);
@@ -137,14 +124,14 @@ void task(Data *data) {
         U1[d] = gsl_vector_calloc(N_TOT);
         F[d] = gsl_vector_calloc(N_TOT);
     }
-    for (int i = 0; i < NS; i++) {
-        S0[i] = gsl_vector_calloc(N_TOT);
-        S1[i] = gsl_vector_calloc(N_TOT);
-        Ssource[i] = gsl_vector_calloc(N_TOT);
+    for (d = 0; d < NS; d++) {
+        S0[d] = gsl_vector_calloc(N_TOT);
+        S1[d] = gsl_vector_calloc(N_TOT);
+        Ssource[d] = gsl_vector_calloc(N_TOT);
     }
 
     // Output image
-    Mat result(N0, N1, CV_8UC3);
+    Image <Vec3b> result(N0, N1, CV_8UC3);
 
     // Main loop
     while (simulating) {
@@ -159,13 +146,12 @@ void task(Data *data) {
         getInput(data, F, Ssource);
 
         Vstep(U1, U0, F, dt, uDiffSolver, ts, projectSolver);
-        for (int i = 0; i < NS; i++)
-            Sstep(S1[i], S0[i], aS, Ssource[i], dt, sDiffSolver, ts);
+        for (d = 0; d < NS; d++)
+            Sstep(S1[d], S0[d], aS, Ssource[d], dt, sDiffSolver, ts);
 
         // TEST : keep it since we update the source and the force with the user interaction
-        for (int i = 0; i < NS; i++) {
-            gsl_vector_scale(Ssource[i], 0.8);
-        }
+        for (d = 0; d < NS; d++)
+            gsl_vector_scale(Ssource[d], 0.8);
         gsl_vector_scale(F[0], 0.8);
         gsl_vector_scale(F[1], 0.8);
 
@@ -173,16 +159,15 @@ void task(Data *data) {
         // try this : let's assume that it won't be over 255 if it begins at 150.
 
         for (y = 0; y < N1; y++)
-            for (x = 0; x < N0; x++){
+            for (x = 0; x < N0; x++) {
                 double red = gsl_vector_get(S0[2], _at(x, y)),
                         green = gsl_vector_get(S0[1], _at(x, y)),
                         blue = gsl_vector_get(S0[0], _at(x, y));
-                result.at<Vec3b>(x, y) = Vec3b((uchar) ((blue>255) ? 255 : blue),
-                                               (uchar) ((green>255) ? 255 : green),
-                                               (uchar) ((red>255) ? 255 : red));
+                result(x, y) = Vec3b((uchar)((blue > 255) ? 255 : blue),
+                                     (uchar)((green > 255) ? 255 : green),
+                                     (uchar)((red > 255) ? 255 : red));
             }
-        imshow(WINDOW_NAME, result);
-        waitKey(1);
+        outputImage(result);
     }
 }
 
@@ -191,7 +176,7 @@ int main(int argc, char **argv) {
 
     // Input vectors
     gsl_vector *F[NDIM], *Ssource[NS];
-    for (int i = 0; i < NS; i++)
+    for (size_t i = 0; i < NS; i++)
         Ssource[i] = gsl_vector_calloc(N_TOT);
     for (size_t d = 0; d < NDIM; d++)
         F[d] = gsl_vector_calloc(N_TOT);
@@ -201,9 +186,9 @@ int main(int argc, char **argv) {
 
     // callbacks for the user interaction
     namedWindow(WINDOW_NAME);
-    createTrackbar("R", WINDOW_NAME, &r, 1);
-    createTrackbar("G", WINDOW_NAME, &g, 1);
-    createTrackbar("B", WINDOW_NAME, &b, 1);
+    createTrackbar("R", WINDOW_NAME, &r, 255);
+    createTrackbar("G", WINDOW_NAME, &g, 255);
+    createTrackbar("B", WINDOW_NAME, &b, 255);
     setMouseCallback(WINDOW_NAME, mouseCallback, &data);
 
     // Start computing thread

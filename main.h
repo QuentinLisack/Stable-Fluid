@@ -16,7 +16,7 @@ class ProjectSolver;
  */
 
 const size_t NDIM = 2, LOG2N = 8;
-const int NS = 3;
+const size_t NS = 3;
 //8 // POWER OF 2 FOR SPACE DIMENSION
 const size_t N0 = (1 << LOG2N);
 const size_t N1 = N0;
