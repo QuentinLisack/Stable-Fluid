@@ -94,7 +94,7 @@ VideoWriter *videoWriter = NULL;
 void outputImage(const Mat &img) {
 
     if (!videoWriter) {
-        videoWriter = new VideoWriter("../output.mpeg4", CV_FOURCC('a', 'v', 'c', '1'), fps, Size(N0, N1));
+        videoWriter = new VideoWriter("../output.avi", CV_FOURCC('M', 'J', 'P', 'G'), fps, Size(N0, N1));
         assert(videoWriter->isOpened());
     }
 
