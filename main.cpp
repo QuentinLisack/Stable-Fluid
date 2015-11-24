@@ -29,7 +29,7 @@ typedef struct {
 
 volatile bool simulating = true;
 
-const double forceCoeff = 1.0;
+const double forceCoeff = 10.0;
 
 const int maxSource = 255;
 int xf = -1, yf = -1, r = maxSource, g = maxSource, b = maxSource;
@@ -108,7 +108,7 @@ void task(Data *data) {
     gsl_vector *F[NDIM], *Ssource[NS];
 
     // Space parameters
-    const double visc = 25.0, kS = 5.0, aS = 1e-3, h = 1.0, dt = 1 / fps;
+    const double visc = 25.0, kS = 25.0, aS = 1e-3, h = 1.0, dt = 1 / fps;
     size_t x, y, d;
 
     DiffusionSolver uDiffSolver(visc, h, dt), sDiffSolver(kS, h, dt);
@@ -212,6 +212,30 @@ int main(int argc, char **argv) {
  * Create a separate class (eg: Fluid) if you want to put them outside of this file
  */
 
+
+void projectOnBorder(gsl_vector **u0) {
+
+    for (size_t x = 0; x < N0; x++) {
+        double vy = gsl_vector_get(u0[1], _at(x, 0));
+        if (vy < 0)
+            gsl_vector_set(u0[1], _at(x, 0), 0);
+
+        vy = gsl_vector_get(u0[1], _at(x, N1-1));
+        if (vy > 0)
+            gsl_vector_set(u0[1], _at(x, N1-1), 0);
+    }
+    for (size_t y = 0; y < N1; y++) {
+        double vx = gsl_vector_get(u0[0], _at(0, y));
+        if (vx < 0)
+            gsl_vector_set(u0[0], _at(0, y), 0);
+
+        vx = gsl_vector_get(u0[0], _at(N0-1, y));
+        if (vx > 0)
+            gsl_vector_set(u0[0], _at(N0-1, y), 0);
+    }
+}
+
+
 void Vstep(gsl_vector *U1[],
            gsl_vector *U0[],
            gsl_vector *F[],
@@ -223,6 +247,9 @@ void Vstep(gsl_vector *U1[],
     size_t d;
     for (d = 0; d < NDIM; d++)
         addForce(U0[d], F[d]); // works if F is a velocity
+
+    projectOnBorder(U0);
+
     transpSolver.setU(U0); // Update transpSolver with this velocity
     for (d = 0; d < NDIM; d++)
         transpSolver.transport(U1[d], U0[d], dt);

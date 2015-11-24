@@ -19,11 +19,12 @@ DiffusionSolver::DiffusionSolver(const double coeff, const double h, const doubl
 
     for (size_t y = 0; y < N1; y++) for (size_t x = 0; x < N0; x++) {
 
-            gsl_spmatrix_set(A, _at(x, y), _at(x, y), 1 - 4 * K);
-            if (x > 0)     gsl_spmatrix_set(A, _at(x, y), _at(x - 1, y    ), K);
-            if (y > 0)     gsl_spmatrix_set(A, _at(x, y), _at(x    , y - 1), K);
-            if (y < N1-1)  gsl_spmatrix_set(A, _at(x, y), _at(x    , y + 1), K);
-            if (x < N0-1)  gsl_spmatrix_set(A, _at(x, y), _at(x + 1, y    ), K);
+            size_t count = 4;
+            if (x > 0)     gsl_spmatrix_set(A, _at(x, y), _at(x - 1, y    ), K); else count--;
+            if (y > 0)     gsl_spmatrix_set(A, _at(x, y), _at(x    , y - 1), K); else count--;
+            if (y < N1-1)  gsl_spmatrix_set(A, _at(x, y), _at(x    , y + 1), K); else count--;
+            if (x < N0-1)  gsl_spmatrix_set(A, _at(x, y), _at(x + 1, y    ), K); else count--;
+            gsl_spmatrix_set(A, _at(x, y), _at(x, y), 1 - count * K);
         }
 
     /* convert to compressed column format */
