@@ -39,7 +39,11 @@ void Sstep(gsl_vector *S1,
            const double dt,
            DiffusionSolver &diffSolver,
            TransportSolver &transpSolver);
-		   
+
+void grad(gsl_vector *G[], gsl_vector *S, const double h, const double dt);
+
+void addGrad(gsl_vector **S, gsl_vector **F, const double h, const double dt);
+
 inline void addForce(gsl_vector *U, const gsl_vector *F);
 
 inline void addSource(gsl_vector *S, const gsl_vector *source);

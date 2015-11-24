@@ -15,6 +15,7 @@
 
 #include <boost/thread.hpp>
 #include <chrono>
+#include <gsl/gsl_vector_double.h>
 
 #define WINDOW_NAME "Result"
 
@@ -29,7 +30,7 @@ typedef struct {
 
 volatile bool simulating = true;
 
-const double forceCoeff = 10.0;
+const double forceCoeff = 10.0, gradCoeff = 2.0;
 
 const int maxSource = 255;
 int xf = -1, yf = -1, r = maxSource, g = maxSource, b = maxSource;
@@ -145,6 +146,8 @@ void task(Data *data) {
         }
 
         getInput(data, F, Ssource);
+
+        addGrad(Ssource, F, h, dt);
 
         Vstep(U1, U0, F, dt, uDiffSolver, ts, projectSolver);
         for (d = 0; d < NS; d++)
@@ -273,6 +276,34 @@ void Sstep(gsl_vector *S1, // Vector to update
     dissipate(S0, dt, aS);
 }
 
+//calculates the grad of the vector given as input, multiplied by dt
+void grad(gsl_vector *G[], gsl_vector *S, const double h, const double dt) {
+    for (size_t i = 0; i < NDIM; i++) {
+        G[i] = gsl_vector_calloc(N_TOT);
+    }
+    for (size_t x = 1; x < N0-1; x++) {
+        for (size_t y = 1; y < N1-1; y++) {
+            gsl_vector_set(G[0], _at(x, y), (-gsl_vector_get(S, _at(x+1, y)) + gsl_vector_get(S, _at(x-1, y)))*0.5/h);
+            gsl_vector_set(G[1], _at(x, y), (-gsl_vector_get(S, _at(x, y+1)) + gsl_vector_get(S, _at(x, y-1)))*0.5/h);
+        }
+    }
+    for (size_t i = 0; i < NDIM; i++) {
+        gsl_vector_scale(G[i], dt*gradCoeff);
+    }
+}
+
+//function to add the grad of the source to the force
+void addGrad(gsl_vector **S, gsl_vector **F, const double h, const double dt){
+    gsl_vector *G0[NDIM], *G1[NDIM], *G2[NDIM];
+    grad(G0, S[0], h, dt);
+    grad(G1, S[1], h, dt);
+    grad(G2, S[2], h, dt);
+    for(size_t i = 0; i<NDIM; i++) {
+        gsl_vector_add(F[i], G0[i]);
+        gsl_vector_add(F[i], G1[i]);
+        gsl_vector_add(F[i], G2[i]);
+    }
+}
 
 // function to add forces to velocity
 inline void addForce(gsl_vector *U, const gsl_vector *F) {
@@ -306,3 +337,5 @@ void printVector(gsl_vector *vec) {
 
     std::cout << std::endl;
 }
+
+
